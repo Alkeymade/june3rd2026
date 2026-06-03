@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TOMORROW / SIGNAL - Emission Prototype</title>
+    <title>TOMORROW / SIGNAL - The Intercept</title>
     <style>
         body { margin: 0; background-color: #000; overflow: hidden; }
         
-        /* The 16mm Film Grain Overlay */
         .grain {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
@@ -26,117 +25,261 @@
             100% { transform: translate(0, 0); }
         }
 
-        #ui {
-            position: absolute; top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: #444; font-family: monospace; font-size: 14px;
+        #ui, #interact-ui {
+            position: absolute; left: 50%;
+            transform: translateX(-50%);
+            color: #666; font-family: monospace; font-size: 14px;
             text-align: center; pointer-events: none;
             letter-spacing: 2px;
+            z-index: 1000;
+        }
+
+        #ui { top: 50%; transform: translate(-50%, -50%); }
+        
+        #interact-ui { 
+            bottom: 20%; 
+            display: none; 
+            color: #ff3333; 
+            text-shadow: 0px 0px 5px rgba(255,0,0,0.5);
         }
     </style>
 </head>
 <body>
     <div class="grain"></div>
-    <div id="ui">CLICK TO INITIALIZE SIGNAL<br>[ W A S D to Move ]</div>
+    <div id="ui">INITIALIZE SIGNAL<br>[ W A S D to Move ]</div>
+    <div id="interact-ui">[ E ] TO DECRYPT SIGNAL</div>
 
-    <!-- Load Three.js -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 
     <script>
-        // 1. SCENE SETUP (The Void)
+        // 1. SCENE & FOG
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(0x000000, 0.15); // Heavy black fog
+        scene.fog = new THREE.FogExp2(0x000000, 0.035);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // 2. CONTROLS (First Person)
+        // 2. AUDIO SYSTEM (Spatial Audio)
+        const listener = new THREE.AudioListener();
+        camera.add(listener);
+        
+        const sound = new THREE.PositionalAudio(listener);
+        let audioContext;
+        let oscillator;
+        let audioUnlocked = false;
+
+        function initAudio() {
+            audioContext = sound.context;
+            oscillator = audioContext.createOscillator();
+            oscillator.type = 'sawtooth';
+            oscillator.frequency.value = 55; // Low drone frequency
+            
+            // Muddy low-pass filter
+            const filter = audioContext.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 200;
+            
+            oscillator.connect(filter);
+            sound.setNodeSource(filter);
+            sound.setRefDistance(5); // Distance where sound starts dropping off
+            sound.setVolume(2.0);
+            
+            oscillator.start(0);
+        }
+
+        // 3. CONTROLS & INTERACTION
         const controls = new THREE.PointerLockControls(camera, document.body);
+        let systemInitialized = false;
+
         document.addEventListener('click', () => {
             controls.lock();
             document.getElementById('ui').style.display = 'none';
+            if (!systemInitialized) {
+                initAudio();
+                systemInitialized = true;
+            }
         });
-
+        
         scene.add(controls.getObject());
         controls.getObject().position.set(0, 2, 0);
 
-        // Movement Logic
-        const moveState = { forward: false, backward: false, left: false, right: false };
+        const moveState = { forward: false, backward: false, left: false, right: false, interact: false };
         document.addEventListener('keydown', (e) => {
             if (e.code === 'KeyW') moveState.forward = true;
             if (e.code === 'KeyS') moveState.backward = true;
             if (e.code === 'KeyA') moveState.left = true;
             if (e.code === 'KeyD') moveState.right = true;
+            if (e.code === 'KeyE') moveState.interact = true;
         });
         document.addEventListener('keyup', (e) => {
             if (e.code === 'KeyW') moveState.forward = false;
             if (e.code === 'KeyS') moveState.backward = false;
             if (e.code === 'KeyA') moveState.left = false;
             if (e.code === 'KeyD') moveState.right = false;
+            if (e.code === 'KeyE') moveState.interact = false;
         });
 
-        // 3. ARCHITECTURE (The Monolith)
-        const wallMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x111111, 
-            roughness: 0.9, 
-            metalness: 0.1 
-        });
+        // 4. ARCHITECTURE
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.7, metalness: 0.1 });
+        
+        const gridHelper = new THREE.GridHelper(400, 200, 0x222222, 0x0a0a0a);
+        gridHelper.position.y = -0.01; 
+        scene.add(gridHelper);
 
-        // Floor
-        const floorGeometry = new THREE.PlaneGeometry(100, 100);
-        const floor = new THREE.Mesh(floorGeometry, wallMaterial);
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), wallMaterial);
         floor.rotation.x = -Math.PI / 2;
         scene.add(floor);
 
-        // A single massive wall hiding a corner ahead of you
-        const wallGeom = new THREE.BoxGeometry(20, 20, 2);
-        const wall = new THREE.Mesh(wallGeom, wallMaterial);
-        wall.position.set(0, 10, -15);
-        scene.add(wall);
+        const pillarGeom = new THREE.BoxGeometry(6, 40, 6);
+        for(let i = 0; i < 20; i++) {
+            const zPos = -10 - (i * 15); 
+            const leftPillar = new THREE.Mesh(pillarGeom, wallMaterial);
+            leftPillar.position.set(-14, 20, zPos);
+            scene.add(leftPillar);
+            const rightPillar = new THREE.Mesh(pillarGeom, wallMaterial);
+            rightPillar.position.set(14, 20, zPos);
+            scene.add(rightPillar);
+        }
 
-        // 4. THE REVEAL (Proximity Lighting)
-        // This light sits behind the wall. It is off (intensity 0) until you get close.
-        const cornerLight = new THREE.PointLight(0xffffff, 0, 20);
-        cornerLight.position.set(5, 5, -18); 
-        scene.add(cornerLight);
+        const starCount = 3000;
+        const starGeom = new THREE.BufferGeometry();
+        const starPos = new Float32Array(starCount * 3);
+        for(let i = 0; i < starCount * 3; i += 3) {
+            starPos[i] = (Math.random() - 0.5) * 600; 
+            starPos[i+1] = Math.random() * 200 + 40;  
+            starPos[i+2] = (Math.random() - 0.5) * 600; 
+        }
+        starGeom.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+        const starMat = new THREE.PointsMaterial({ color: 0x888888, size: 0.7, fog: false });
+        const stars = new THREE.Points(starGeom, starMat);
+        scene.add(stars);
 
-        // A very dim ambient light just so you aren't blind
-        const ambientLight = new THREE.AmbientLight(0x222222);
+        // 5. THE HOVERING SIGNAL BLOCK
+        const blockZ = -70; // Positioned past the 4th pillar
+        const blockGeom = new THREE.BoxGeometry(3, 4, 3);
+        const blockMat = new THREE.MeshStandardMaterial({ 
+            color: 0x050505, 
+            emissive: 0x220000, 
+            roughness: 0.2, 
+            metalness: 0.9 
+        });
+        const dataBlock = new THREE.Mesh(blockGeom, blockMat);
+        dataBlock.position.set(0, 4, blockZ);
+        scene.add(dataBlock);
+        
+        // Attach the spatial audio source to the block
+        dataBlock.add(sound);
+
+        // A localized light that flares when you get close
+        const blockLight = new THREE.PointLight(0xff0000, 0, 20);
+        blockLight.position.set(0, 4, blockZ);
+        scene.add(blockLight);
+
+        // 6. LIGHTING
+        const moonLight = new THREE.DirectionalLight(0x445566, 1.2); 
+        moonLight.position.set(-50, 100, 20); 
+        scene.add(moonLight);
+
+        const ambientLight = new THREE.AmbientLight(0x111111);
         scene.add(ambientLight);
 
-        const clock = new THREE.Clock();
+        const beaconZ = -280;
+        const beaconGeom = new THREE.SphereGeometry(1.5, 16, 16);
+        const beaconMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const beacon = new THREE.Mesh(beaconGeom, beaconMat);
+        beacon.position.set(0, 5, beaconZ);
+        scene.add(beacon);
 
-        // 5. ANIMATION LOOP
+        const beaconLight = new THREE.PointLight(0xff0000, 8, 150);
+        beaconLight.position.set(0, 5, beaconZ);
+        scene.add(beaconLight);
+
+        const playerLight = new THREE.PointLight(0xffffff, 1.5, 40);
+        scene.add(playerLight);
+
+        const clock = new THREE.Clock();
+        let walkTime = 0; 
+
+        // 7. ANIMATION LOOP
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
-            const speed = 5.0 * delta;
+            const speed = 7.0 * delta;
+            let isMoving = false;
 
-            // Apply movement
-            if (moveState.forward) controls.moveForward(speed);
-            if (moveState.backward) controls.moveForward(-speed);
-            if (moveState.left) controls.moveRight(-speed);
-            if (moveState.right) controls.moveRight(speed);
+            if (moveState.forward) { controls.moveForward(speed); isMoving = true; }
+            if (moveState.backward) { controls.moveForward(-speed); isMoving = true; }
+            if (moveState.left) { controls.moveRight(-speed); isMoving = true; }
+            if (moveState.right) { controls.moveRight(speed); isMoving = true; }
 
-            // Calculate distance to the hidden corner
-            const dist = controls.getObject().position.distanceTo(cornerLight.position);
-            
-            // If user is within 12 units of the corner, aggressively ramp up the light
-            if (dist < 12) {
-                cornerLight.intensity = THREE.MathUtils.lerp(cornerLight.intensity, 5, 0.05);
+            const pos = controls.getObject().position;
+            if (pos.x > 9) pos.x = 9;
+            if (pos.x < -9) pos.x = -9;
+
+            if (isMoving) {
+                walkTime += delta * 10;
+                pos.y = 2 + Math.sin(walkTime) * 0.12; 
             } else {
-                // Fade out if they walk away
-                cornerLight.intensity = THREE.MathUtils.lerp(cornerLight.intensity, 0, 0.05);
+                pos.y = THREE.MathUtils.lerp(pos.y, 2, 0.1);
             }
+
+            playerLight.position.copy(pos);
+            if (Math.random() > 0.98) {
+                playerLight.intensity = Math.random() * 0.5;
+            } else {
+                playerLight.intensity = THREE.MathUtils.lerp(playerLight.intensity, 1.5, 0.2);
+            }
+
+            // Animate Hovering Block
+            const time = Date.now() * 0.002;
+            dataBlock.position.y = 4 + Math.sin(time) * 0.5;
+            dataBlock.rotation.y += 0.005;
+            dataBlock.rotation.x += 0.002;
+
+            // Proximity & Interaction Logic
+            const distToBlock = pos.distanceTo(dataBlock.position);
+            const interactUI = document.getElementById('interact-ui');
+
+            if (distToBlock < 12 && !audioUnlocked) {
+                interactUI.style.display = 'block';
+                blockLight.intensity = THREE.MathUtils.lerp(blockLight.intensity, 3, 0.1);
+                
+                // If user presses E
+                if (moveState.interact) {
+                    audioUnlocked = true;
+                    interactUI.innerHTML = "SIGNAL DECRYPTED";
+                    interactUI.style.color = "#ffffff";
+                    blockMat.emissive.setHex(0x555555); // Change block color
+                    
+                    // Shift the audio to simulate unlocking the stem
+                    if(oscillator) {
+                        oscillator.frequency.setTargetAtTime(110, audioContext.currentTime, 0.1);
+                        oscillator.type = 'sine';
+                    }
+                    
+                    // Hide UI after a few seconds
+                    setTimeout(() => { interactUI.style.display = 'none'; }, 3000);
+                }
+            } else if (!audioUnlocked) {
+                interactUI.style.display = 'none';
+                blockLight.intensity = THREE.MathUtils.lerp(blockLight.intensity, 0, 0.1);
+            }
+
+            // If unlocked, block pulses with bright light
+            if (audioUnlocked) {
+                blockLight.intensity = 5 + Math.sin(time * 5) * 2;
+            }
+
+            beaconLight.intensity = 6 + Math.sin(time) * 3;
+            stars.rotation.y -= 0.0002;
 
             renderer.render(scene, camera);
         }
         animate();
 
-        // Resize handler
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -145,4 +288,3 @@
     </script>
 </body>
 </html>
-
