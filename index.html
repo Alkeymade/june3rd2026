@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>TOMORROW / SIGNAL - Emission Prototype</title>
+    <style>
+        body { margin: 0; background-color: #000; overflow: hidden; }
+        
+        /* The 16mm Film Grain Overlay */
+        .grain {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.15;
+            background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+            animation: grain-shift 0.2s steps(2) infinite;
+        }
+
+        @keyframes grain-shift {
+            0% { transform: translate(0, 0); }
+            10% { transform: translate(-2%, -2%); }
+            20% { transform: translate(2%, 2%); }
+            30% { transform: translate(-2%, 2%); }
+            40% { transform: translate(2%, -2%); }
+            100% { transform: translate(0, 0); }
+        }
+
+        #ui {
+            position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #444; font-family: monospace; font-size: 14px;
+            text-align: center; pointer-events: none;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="grain"></div>
+    <div id="ui">CLICK TO INITIALIZE SIGNAL<br>[ W A S D to Move ]</div>
+
+    <!-- Load Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+
+    <script>
+        // 1. SCENE SETUP (The Void)
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.15); // Heavy black fog
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // 2. CONTROLS (First Person)
+        const controls = new THREE.PointerLockControls(camera, document.body);
+        document.addEventListener('click', () => {
+            controls.lock();
+            document.getElementById('ui').style.display = 'none';
+        });
+
+        scene.add(controls.getObject());
+        controls.getObject().position.set(0, 2, 0);
+
+        // Movement Logic
+        const moveState = { forward: false, backward: false, left: false, right: false };
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyW') moveState.forward = true;
+            if (e.code === 'KeyS') moveState.backward = true;
+            if (e.code === 'KeyA') moveState.left = true;
+            if (e.code === 'KeyD') moveState.right = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW') moveState.forward = false;
+            if (e.code === 'KeyS') moveState.backward = false;
+            if (e.code === 'KeyA') moveState.left = false;
+            if (e.code === 'KeyD') moveState.right = false;
+        });
+
+        // 3. ARCHITECTURE (The Monolith)
+        const wallMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x111111, 
+            roughness: 0.9, 
+            metalness: 0.1 
+        });
+
+        // Floor
+        const floorGeometry = new THREE.PlaneGeometry(100, 100);
+        const floor = new THREE.Mesh(floorGeometry, wallMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+
+        // A single massive wall hiding a corner ahead of you
+        const wallGeom = new THREE.BoxGeometry(20, 20, 2);
+        const wall = new THREE.Mesh(wallGeom, wallMaterial);
+        wall.position.set(0, 10, -15);
+        scene.add(wall);
+
+        // 4. THE REVEAL (Proximity Lighting)
+        // This light sits behind the wall. It is off (intensity 0) until you get close.
+        const cornerLight = new THREE.PointLight(0xffffff, 0, 20);
+        cornerLight.position.set(5, 5, -18); 
+        scene.add(cornerLight);
+
+        // A very dim ambient light just so you aren't blind
+        const ambientLight = new THREE.AmbientLight(0x222222);
+        scene.add(ambientLight);
+
+        const clock = new THREE.Clock();
+
+        // 5. ANIMATION LOOP
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const speed = 5.0 * delta;
+
+            // Apply movement
+            if (moveState.forward) controls.moveForward(speed);
+            if (moveState.backward) controls.moveForward(-speed);
+            if (moveState.left) controls.moveRight(-speed);
+            if (moveState.right) controls.moveRight(speed);
+
+            // Calculate distance to the hidden corner
+            const dist = controls.getObject().position.distanceTo(cornerLight.position);
+            
+            // If user is within 12 units of the corner, aggressively ramp up the light
+            if (dist < 12) {
+                cornerLight.intensity = THREE.MathUtils.lerp(cornerLight.intensity, 5, 0.05);
+            } else {
+                // Fade out if they walk away
+                cornerLight.intensity = THREE.MathUtils.lerp(cornerLight.intensity, 0, 0.05);
+            }
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
