@@ -140,15 +140,25 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // 2. AUDIO ENGINE
+       // 2. AUDIO ENGINE
         const listener = new THREE.AudioListener();
         camera.add(listener);
         const encryptedSignal = new THREE.PositionalAudio(listener);
         let audioContext, oscillator, filter;
 
+        // --- REPLACE THE FOLLOWING SECTION ---
         const stems = [];
-        const stemFiles = ['stem_01.wav', 'stem_02.wav', 'stem_03.wav', 'stem_04.wav', 'stem_05.wav'];
+        const bucketBase = 'https://pub-d1605939091d4017b8650442205e3d60.r2.dev';
+        const stemFiles = [
+            `${bucketBase}/stem_01.wav`,
+            `${bucketBase}/stem_02.wav`,
+            `${bucketBase}/stem_03.wav`,
+            `${bucketBase}/stem_04.wav`,
+            `${bucketBase}/stem_05.wav`
+        ];
         let loadedCount = 0;
+        // --- END REPLACEMENT ---
+
         let currentStage = 0; 
         const maxStages = stemFiles.length;
         
