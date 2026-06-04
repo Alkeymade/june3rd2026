@@ -348,18 +348,16 @@
         let walkTime = 0; 
         let blockDecrypting = false;
 
-        // 5. ANIMATION LOOP
+// 5. ANIMATION LOOP
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
             
-            // FIXED ROTATION MATH: Camera calculates target from its actual world position, not origin 0,0,0
+            // Camera/Movement logic remains the same...
             let phi = THREE.MathUtils.degToRad(90 - lat);
             let theta = THREE.MathUtils.degToRad(lon);
-            
             let camPos = new THREE.Vector3();
-            camera.getWorldPosition(camPos); // Get current footsteps
-            
+            camera.getWorldPosition(camPos);
             let target = new THREE.Vector3(
                 camPos.x + Math.sin(phi) * Math.cos(theta),
                 camPos.y + Math.cos(phi),
@@ -367,31 +365,14 @@
             );
             camera.lookAt(target);
 
-            // Movement Calculation
             const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
             const right = new THREE.Vector3(); right.crossVectors(dir, camera.up).normalize();
 
-            let isMoving = false;
-            if (moveState.forward) { playerGroup.position.addScaledVector(dir, 10 * delta); isMoving = true; } // Speed boosted slightly for playability
-            if (moveState.backward) { playerGroup.position.addScaledVector(dir, -10 * delta); isMoving = true; }
-            if (moveState.left) { playerGroup.position.addScaledVector(right, -10 * delta); isMoving = true; }
-            if (moveState.right) { playerGroup.position.addScaledVector(right, 10 * delta); isMoving = true; }
+            if (moveState.forward) playerGroup.position.addScaledVector(dir, 10 * delta);
+            if (moveState.backward) playerGroup.position.addScaledVector(dir, -10 * delta);
+            if (moveState.left) playerGroup.position.addScaledVector(right, -10 * delta);
+            if (moveState.right) playerGroup.position.addScaledVector(right, 10 * delta);
 
-            if (playerGroup.position.x > 9) playerGroup.position.x = 9;
-            if (playerGroup.position.x < -9) playerGroup.position.x = -9;
-
-            if (isMoving) {
-                walkTime += delta * 10;
-                playerGroup.position.y = 2 + Math.sin(walkTime) * 0.12; 
-            } else {
-                playerGroup.position.y = THREE.MathUtils.lerp(playerGroup.position.y, 2, 0.1);
-            }
-
-            playerLight.position.copy(playerGroup.position);
-            if (Math.random() > 0.98) playerLight.intensity = Math.random() * 0.5;
-            else playerLight.intensity = THREE.MathUtils.lerp(playerLight.intensity, 1.5, 0.2);
-
-            // Sequencer
             // Sequencer
             if (currentStage < maxStages) {
                 const time = Date.now() * 0.002;
@@ -409,12 +390,9 @@
                     if (moveState.interact) {
                         blockDecrypting = true;
                         interactUI.innerHTML = "DECRYPTING...";
-                        interactUI.style.color = "#ffffff";
                         blockMat.emissive.setHex(0x555555);
                         
                         if(oscillator) oscillator.frequency.setTargetAtTime(110, audioContext.currentTime, 0.1);
-                        
-                        // Use the new gainNode for volume control
                         if (stems[currentStage]) {
                             stems[currentStage].gainNode.gain.setTargetAtTime(1.0, audioContext.currentTime, 1.0);
                             stems[currentStage].play();
@@ -428,55 +406,26 @@
                                 dataBlock.position.copy(blockCoordinates[currentStage]);
                                 blockLight.position.copy(blockCoordinates[currentStage]);
                                 blockMat.emissive.setHex(0x220000); 
-                                if(oscillator) oscillator.frequency.setTargetAtTime(45, audioContext.currentTime, 0.1);
                                 interactUI.innerHTML = "SIGNAL IN RANGE<br>PRESS [ E ] TO DECRYPT";
-                                interactUI.style.color = "#ff3333";
                             } else {
                                 dataBlock.visible = false;
                                 blockLight.intensity = 0;
                                 interactUI.style.display = 'none';
                                 
-                                // Stop the hum on final decryption
+                                // Clean stop for the hum
                                 if (oscillator) {
                                     oscillator.stop();
                                     oscillator.disconnect();
                                     oscillator = null;
                                 }
-
                                 document.getElementById('terminal-drop').style.display = 'flex';
-                                document.getElementById('crosshair').style.display = 'none';
-                                if (isMobile) document.getElementById('mobile-ui').style.display = 'none';
                             }
                         }, 2000);
                     }
                 } else if (!blockDecrypting) {
                     interactUI.style.display = 'none';
-                    blockLight.intensity = THREE.MathUtils.lerp(blockLight.intensity, 0, 0.1);
                 }
-                if (blockDecrypting) blockLight.intensity = 5 + Math.sin(time * 5) * 2;
             }
-                            // ADD THIS: Stop the hum
-                            if (oscillator) {
-                                oscillator.stop();
-                                oscillator.disconnect();
-                                oscillator = null;
-                            }
-
-                            document.getElementById('terminal-drop').style.display = 'flex';
-                            document.getElementById('crosshair').style.display = 'none';
-                            if (isMobile) document.getElementById('mobile-ui').style.display = 'none';
-                        }
-
-// ... keep everything below this ...
-                    }
-                } else if (!blockDecrypting) {
-                    interactUI.style.display = 'none';
-                    blockLight.intensity = THREE.MathUtils.lerp(blockLight.intensity, 0, 0.1);
-                }
-
-                if (blockDecrypting) blockLight.intensity = 5 + Math.sin(time * 5) * 2;
-            }
-
             renderer.render(scene, camera);
         }
         animate();
