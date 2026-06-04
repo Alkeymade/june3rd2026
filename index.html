@@ -161,19 +161,16 @@
         const maxStages = stemFiles.length;
         
         const audioLoader = new THREE.AudioLoader();
+        // This line is what actually fixed the syncing issue
         audioLoader.crossOrigin = "anonymous"; 
 
-        // Load all external stems
+        // Load all external stems naturally
         stemFiles.forEach((file, index) => {
             audioLoader.load(file, (buffer) => {
                 const stemAudio = new THREE.Audio(listener);
-                const gainNode = listener.context.createGain();
-                gainNode.gain.value = 0; 
-                stemAudio.setNodeSource(gainNode);
-                
                 stemAudio.setBuffer(buffer);
                 stemAudio.setLoop(true);
-                stemAudio.gainNode = gainNode;
+                stemAudio.setVolume(0); // Native Three.js way to start silent
                 
                 stems[index] = stemAudio;
                 loadedCount++;
@@ -183,7 +180,6 @@
                     document.getElementById('start-btn').style.display = 'block';
                 }
             }, undefined, function() {
-                // Error handling fallback
                 document.getElementById('loading-text').innerHTML = "ERROR LOADING SIGNAL.";
             });
         });
@@ -200,7 +196,7 @@
             audioContext = listener.context;
             if (audioContext.state === 'suspended') audioContext.resume();
             
-            // Start stems playing silently
+            // Start stems playing silently so they are perfectly in sync
             stems.forEach(stem => { if(stem.buffer) stem.play(); });
 
             oscillator = audioContext.createOscillator();
@@ -385,9 +381,9 @@
                         
                         if(oscillator) oscillator.frequency.setTargetAtTime(110, audioContext.currentTime, 0.1);
                         
-                        // Audio Fade In
-                        if (stems[currentStage] && stems[currentStage].gainNode) {
-                            stems[currentStage].gainNode.gain.setTargetAtTime(1.0, audioContext.currentTime, 1.0);
+                        // FADE IN (Audio is already playing from initSystem, we just turn up the volume)
+                        if (stems[currentStage]) {
+                            stems[currentStage].gain.gain.setTargetAtTime(1.0, audioContext.currentTime, 1.0);
                         }
 
                         setTimeout(() => { 
