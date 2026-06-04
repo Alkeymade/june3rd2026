@@ -146,7 +146,6 @@
         const encryptedSignal = new THREE.PositionalAudio(listener);
         let audioContext, oscillator, filter;
 
-        // --- REPLACE THE FOLLOWING SECTION ---
         const stems = [];
         const bucketBase = 'https://pub-d1605939091d4017b8650442205e3d60.r2.dev';
         const stemFiles = [
@@ -156,7 +155,36 @@
             `${bucketBase}/stem_04.wav`,
             `${bucketBase}/stem_05.wav`
         ];
+        
         let loadedCount = 0;
+        let currentStage = 0; 
+        const maxStages = stemFiles.length;
+        
+        const audioLoader = new THREE.AudioLoader();
+        audioLoader.crossOrigin = "anonymous"; 
+
+        stemFiles.forEach((file, index) => {
+            audioLoader.load(file, (buffer) => {
+                const stemAudio = new THREE.Audio(listener);
+                // Create a gain node so we can fade audio in later
+                const gainNode = listener.context.createGain();
+                gainNode.gain.value = 0; // Initialize at silent
+                stemAudio.setNodeSource(gainNode);
+                
+                stemAudio.setBuffer(buffer);
+                stemAudio.setLoop(true);
+                // Store the gainNode on the audio object for easy access in the animation loop
+                stemAudio.gainNode = gainNode;
+                
+                stems[index] = stemAudio;
+                loadedCount++;
+                
+                if (loadedCount === stemFiles.length) {
+                    document.getElementById('loading-text').style.display = 'none';
+                    document.getElementById('start-btn').style.display = 'block';
+                }
+            });
+        });
         // --- END REPLACEMENT ---
 
         let currentStage = 0; 
@@ -364,10 +392,12 @@
             else playerLight.intensity = THREE.MathUtils.lerp(playerLight.intensity, 1.5, 0.2);
 
             // Sequencer
+            // Sequencer
             if (currentStage < maxStages) {
                 const time = Date.now() * 0.002;
                 dataBlock.position.y = 4 + Math.sin(time) * 0.5;
-                dataBlock.rotation.y += 0.005; dataBlock.rotation.x += 0.002;
+                dataBlock.rotation.y += 0.005; 
+                dataBlock.rotation.x += 0.002;
 
                 const dist = playerGroup.position.distanceTo(dataBlock.position);
                 const interactUI = document.getElementById('interact-ui');
@@ -384,8 +414,10 @@
                         
                         if(oscillator) oscillator.frequency.setTargetAtTime(110, audioContext.currentTime, 0.1);
                         
+                        // Use the new gainNode for volume control
                         if (stems[currentStage]) {
-                            stems[currentStage].gain.gain.setTargetAtTime(1.0, audioContext.currentTime, 1.0);
+                            stems[currentStage].gainNode.gain.setTargetAtTime(1.0, audioContext.currentTime, 1.0);
+                            stems[currentStage].play();
                         }
 
                         setTimeout(() => { 
@@ -399,13 +431,30 @@
                                 if(oscillator) oscillator.frequency.setTargetAtTime(45, audioContext.currentTime, 0.1);
                                 interactUI.innerHTML = "SIGNAL IN RANGE<br>PRESS [ E ] TO DECRYPT";
                                 interactUI.style.color = "#ff3333";
-                            // ... keep everything above this ...
+                            } else {
+                                dataBlock.visible = false;
+                                blockLight.intensity = 0;
+                                interactUI.style.display = 'none';
+                                
+                                // Stop the hum on final decryption
+                                if (oscillator) {
+                                    oscillator.stop();
+                                    oscillator.disconnect();
+                                    oscillator = null;
+                                }
 
-                        } else {
-                            dataBlock.visible = false;
-                            blockLight.intensity = 0;
-                            interactUI.style.display = 'none';
-                            
+                                document.getElementById('terminal-drop').style.display = 'flex';
+                                document.getElementById('crosshair').style.display = 'none';
+                                if (isMobile) document.getElementById('mobile-ui').style.display = 'none';
+                            }
+                        }, 2000);
+                    }
+                } else if (!blockDecrypting) {
+                    interactUI.style.display = 'none';
+                    blockLight.intensity = THREE.MathUtils.lerp(blockLight.intensity, 0, 0.1);
+                }
+                if (blockDecrypting) blockLight.intensity = 5 + Math.sin(time * 5) * 2;
+            }
                             // ADD THIS: Stop the hum
                             if (oscillator) {
                                 oscillator.stop();
