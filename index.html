@@ -140,7 +140,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-       // 2. AUDIO ENGINE
+        // 2. AUDIO ENGINE
         const listener = new THREE.AudioListener();
         camera.add(listener);
         const encryptedSignal = new THREE.PositionalAudio(listener);
@@ -163,17 +163,16 @@
         const audioLoader = new THREE.AudioLoader();
         audioLoader.crossOrigin = "anonymous"; 
 
+        // Load all external stems
         stemFiles.forEach((file, index) => {
             audioLoader.load(file, (buffer) => {
                 const stemAudio = new THREE.Audio(listener);
-                // Create a gain node so we can fade audio in later
                 const gainNode = listener.context.createGain();
-                gainNode.gain.value = 0; // Initialize at silent
+                gainNode.gain.value = 0; 
                 stemAudio.setNodeSource(gainNode);
                 
                 stemAudio.setBuffer(buffer);
                 stemAudio.setLoop(true);
-                // Store the gainNode on the audio object for easy access in the animation loop
                 stemAudio.gainNode = gainNode;
                 
                 stems[index] = stemAudio;
@@ -183,13 +182,12 @@
                     document.getElementById('loading-text').style.display = 'none';
                     document.getElementById('start-btn').style.display = 'block';
                 }
+            }, undefined, function() {
+                // Error handling fallback
+                document.getElementById('loading-text').innerHTML = "ERROR LOADING SIGNAL.";
             });
         });
-        // --- END REPLACEMENT ---
 
-        let currentStage = 0; 
-        const maxStages = stemFiles.length;
-        
         const blockCoordinates = [
             new THREE.Vector3(0, 4, -40),
             new THREE.Vector3(-10, 4, -80),
@@ -198,35 +196,11 @@
             new THREE.Vector3(0, 4, -240)
         ];
 
-        const audioLoader = new THREE.AudioLoader();
-        stemFiles.forEach((file, index) => {
-            const globalStem = new THREE.Audio(listener);
-            audioLoader.load(file, function(buffer) {
-                globalStem.setBuffer(buffer);
-                globalStem.setLoop(true);
-                globalStem.setVolume(0); 
-                stems[index] = globalStem;
-                loadedCount++;
-                if (loadedCount === stemFiles.length) {
-                    document.getElementById('loading-text').style.display = 'none';
-                    document.getElementById('start-btn').style.display = 'block';
-                }
-            }, undefined, function() {
-                stems[index] = globalStem; loadedCount++;
-                if (loadedCount === stemFiles.length) {
-                    document.getElementById('loading-text').innerHTML = "MISSING AUDIO. RUNNING SILENT.";
-                    setTimeout(() => {
-                        document.getElementById('loading-text').style.display = 'none';
-                        document.getElementById('start-btn').style.display = 'block';
-                    }, 2000);
-                }
-            });
-        });
-
         function initSystem() {
             audioContext = listener.context;
             if (audioContext.state === 'suspended') audioContext.resume();
             
+            // Start stems playing silently
             stems.forEach(stem => { if(stem.buffer) stem.play(); });
 
             oscillator = audioContext.createOscillator();
@@ -348,16 +322,17 @@
         let walkTime = 0; 
         let blockDecrypting = false;
 
-// 5. ANIMATION LOOP
+        // 5. ANIMATION LOOP
         function animate() {
             requestAnimationFrame(animate);
             const delta = clock.getDelta();
             
-            // Camera/Movement logic remains the same...
             let phi = THREE.MathUtils.degToRad(90 - lat);
             let theta = THREE.MathUtils.degToRad(lon);
+            
             let camPos = new THREE.Vector3();
-            camera.getWorldPosition(camPos);
+            camera.getWorldPosition(camPos); 
+            
             let target = new THREE.Vector3(
                 camPos.x + Math.sin(phi) * Math.cos(theta),
                 camPos.y + Math.cos(phi),
@@ -368,10 +343,25 @@
             const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
             const right = new THREE.Vector3(); right.crossVectors(dir, camera.up).normalize();
 
-            if (moveState.forward) playerGroup.position.addScaledVector(dir, 10 * delta);
-            if (moveState.backward) playerGroup.position.addScaledVector(dir, -10 * delta);
-            if (moveState.left) playerGroup.position.addScaledVector(right, -10 * delta);
-            if (moveState.right) playerGroup.position.addScaledVector(right, 10 * delta);
+            let isMoving = false;
+            if (moveState.forward) { playerGroup.position.addScaledVector(dir, 10 * delta); isMoving = true; }
+            if (moveState.backward) { playerGroup.position.addScaledVector(dir, -10 * delta); isMoving = true; }
+            if (moveState.left) { playerGroup.position.addScaledVector(right, -10 * delta); isMoving = true; }
+            if (moveState.right) { playerGroup.position.addScaledVector(right, 10 * delta); isMoving = true; }
+
+            if (playerGroup.position.x > 9) playerGroup.position.x = 9;
+            if (playerGroup.position.x < -9) playerGroup.position.x = -9;
+
+            if (isMoving) {
+                walkTime += delta * 10;
+                playerGroup.position.y = 2 + Math.sin(walkTime) * 0.12; 
+            } else {
+                playerGroup.position.y = THREE.MathUtils.lerp(playerGroup.position.y, 2, 0.1);
+            }
+
+            playerLight.position.copy(playerGroup.position);
+            if (Math.random() > 0.98) playerLight.intensity = Math.random() * 0.5;
+            else playerLight.intensity = THREE.MathUtils.lerp(playerLight.intensity, 1.5, 0.2);
 
             // Sequencer
             if (currentStage < maxStages) {
@@ -390,12 +380,14 @@
                     if (moveState.interact) {
                         blockDecrypting = true;
                         interactUI.innerHTML = "DECRYPTING...";
+                        interactUI.style.color = "#ffffff";
                         blockMat.emissive.setHex(0x555555);
                         
                         if(oscillator) oscillator.frequency.setTargetAtTime(110, audioContext.currentTime, 0.1);
-                        if (stems[currentStage]) {
+                        
+                        // Audio Fade In
+                        if (stems[currentStage] && stems[currentStage].gainNode) {
                             stems[currentStage].gainNode.gain.setTargetAtTime(1.0, audioContext.currentTime, 1.0);
-                            stems[currentStage].play();
                         }
 
                         setTimeout(() => { 
@@ -406,7 +398,9 @@
                                 dataBlock.position.copy(blockCoordinates[currentStage]);
                                 blockLight.position.copy(blockCoordinates[currentStage]);
                                 blockMat.emissive.setHex(0x220000); 
+                                if(oscillator) oscillator.frequency.setTargetAtTime(45, audioContext.currentTime, 0.1);
                                 interactUI.innerHTML = "SIGNAL IN RANGE<br>PRESS [ E ] TO DECRYPT";
+                                interactUI.style.color = "#ff3333";
                             } else {
                                 dataBlock.visible = false;
                                 blockLight.intensity = 0;
@@ -418,14 +412,21 @@
                                     oscillator.disconnect();
                                     oscillator = null;
                                 }
+
                                 document.getElementById('terminal-drop').style.display = 'flex';
+                                document.getElementById('crosshair').style.display = 'none';
+                                if (isMobile) document.getElementById('mobile-ui').style.display = 'none';
                             }
                         }, 2000);
                     }
                 } else if (!blockDecrypting) {
                     interactUI.style.display = 'none';
+                    blockLight.intensity = THREE.MathUtils.lerp(blockLight.intensity, 0, 0.1);
                 }
+
+                if (blockDecrypting) blockLight.intensity = 5 + Math.sin(time * 5) * 2;
             }
+
             renderer.render(scene, camera);
         }
         animate();
