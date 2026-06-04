@@ -1,0 +1,12 @@
+{
+  "track_name": "White Bronco",
+  "version": "1.0.0",
+  "stems": [
+    "stem_01.wav",
+    "stem_02.wav",
+    "stem_03.wav",
+    "stem_04.wav",
+    "stem_05.wav"
+  ],
+  "base_url": "https://pub-d1605939091d4017b8650442205e3d60.r2.dev"
+}
