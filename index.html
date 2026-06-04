@@ -405,12 +405,18 @@
                             dataBlock.visible = false;
                             blockLight.intensity = 0;
                             interactUI.style.display = 'none';
+                            
+                            // ADD THIS: Stop the hum
+                            if (oscillator) {
+                                oscillator.stop();
+                                oscillator.disconnect();
+                                oscillator = null;
+                            }
+
                             document.getElementById('terminal-drop').style.display = 'flex';
                             document.getElementById('crosshair').style.display = 'none';
                             if (isMobile) document.getElementById('mobile-ui').style.display = 'none';
                         }
-                    }, 2000);
-                }
 
 // ... keep everything below this ...
                     }
