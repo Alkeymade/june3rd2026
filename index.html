@@ -3,61 +3,343 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TOMORROW / SIGNAL - The Archive</title>
+    <title>White Bronco - Digital Mysticism</title>
     <style>
         body, html { 
-            margin: 0; padding: 0; background-color: #000; overflow: hidden; 
-            touch-action: none; -webkit-user-select: none; user-select: none;
+            margin: 0; padding: 0; background-color: #0a0b0e; overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
         }
+
+        /* 3D Canvas */
+        #glass-canvas {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1;
+        }
+
+        /* UI Overlay */
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10;
+            pointer-events: none; 
+            display: flex; flex-direction: column; justify-content: center; padding-left: 8vw;
+        }
+
+        .micro-text {
+            color: #666; font-family: monospace; font-size: 11px; letter-spacing: 3px;
+            text-transform: uppercase; margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #e0e0e0; font-size: 7vw; font-weight: 500; letter-spacing: -0.04em;
+            margin: 0 0 20px 0; line-height: 1.05; max-width: 800px;
+        }
+
+        .sub-text {
+            color: #777; font-size: 15px; max-width: 400px; line-height: 1.6; margin-bottom: 40px;
+            font-weight: 400;
+        }
+
+        .btn-container { pointer-events: auto; display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
+
+        .btn-primary {
+            background: #e0e0e0; color: #000; border: none; border-radius: 30px;
+            font-size: 13px; font-weight: 600; padding: 14px 28px; cursor: pointer; 
+            transition: all 0.2s ease;
+        }
+        .btn-primary:hover { background: #fff; transform: scale(1.02); }
+        .btn-primary:disabled { background: #333; color: #555; cursor: not-allowed; }
         
-        .grain {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            pointer-events: none; z-index: 999; 
-            opacity: 0.03; /* Cleaned up for the glass aesthetic */
-            background-image: url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
-            animation: grain-shift 0.2s steps(2) infinite;
+        .btn-ghost {
+            background: transparent; color: #888; border: 1px solid #444; border-radius: 30px;
+            font-size: 13px; font-weight: 600; padding: 14px 28px; cursor: pointer; 
+            text-decoration: none; transition: all 0.2s ease;
         }
-        @keyframes grain-shift {
-            0% { transform: translate(0, 0); }
-            10% { transform: translate(-2%, -2%); }
-            20% { transform: translate(2%, 2%); }
-            30% { transform: translate(-2%, 2%); }
-            40% { transform: translate(2%, -2%); }
-            100% { transform: translate(0, 0); }
-        }
+        .btn-ghost:hover { border-color: #888; color: #e0e0e0; }
 
-        #start-screen {
-            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #000; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; z-index: 2000;
-        }
-        .btn-brutalist {
-            background: transparent; color: #666; border: 1px solid #666;
-            font-family: monospace; font-size: 16px; letter-spacing: 2px;
-            padding: 15px 30px; cursor: pointer; text-transform: uppercase;
-        }
-        .btn-brutalist:active { background: #333; color: #fff; }
+        #status-text { color: #ff3333; font-family: monospace; font-size: 12px; letter-spacing: 1px; }
 
-        #mobile-ui { display: none; }
-        .d-pad {
-            position: absolute; bottom: 30px; left: 30px; z-index: 1000;
-            display: flex; flex-direction: column; align-items: center; gap: 5px;
-        }
-        .d-pad-row { display: flex; gap: 5px; }
-        .ctrl-btn {
-            width: 50px; height: 50px; background: rgba(20,20,20,0.5);
-            border: 1px solid #444; color: #666; font-family: monospace;
-            display: flex; justify-content: center; align-items: center; font-size: 18px; border-radius: 4px;
-        }
-        .ctrl-btn:active { background: rgba(255,255,255,0.2); color: #fff; }
+    </style>
+</head>
+<body>
 
-        #btn-action {
-            position: absolute; bottom: 30px; right: 30px; z-index: 1000;
-            width: 70px; height: 70px; border-color: #aa3333; color: #aa3333; border-radius: 50%;
-        }
-        #btn-action:active { background: rgba(170,51,51,0.3); color: #ff3333; }
+    <canvas id="glass-canvas"></canvas>
+
+    <div id="ui-layer">
+        <div class="micro-text">DIGITAL MYSTICISM STUDIO</div>
+        <h1>White<br>Bronco.</h1>
+        <div class="sub-text">
+            Author dispersion, transmission, and refraction in the browser. It does three things only: Listens, Compresses, Exhales. No feedback loops. No personalization.
+        </div>
+        <div class="btn-container">
+            <button class="btn-primary" id="start-btn" disabled>INITIALIZE SIGNAL</button>
+            <a href="https://al-khabir.bandcamp.com/track/whitebronco" target="_blank" class="btn-ghost">SECURE TRACK ↗</a>
+        </div>
+        <div id="status-text">SYNCING DATA...</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // --- 1. AUDIO ENGINE SETUP ---
+        const listener = new THREE.AudioListener();
+        let audioContext;
+        const stems = [];
+        const bucketBase = 'https://pub-d1605939091d4017b8650442205e3d60.r2.dev';
+        const stemFiles = [
+            `${bucketBase}/stem_01.wav`,
+            `${bucketBase}/stem_02.wav`,
+            `${bucketBase}/stem_03.wav`,
+            `${bucketBase}/stem_04.wav`,
+            `${bucketBase}/stem_05.wav`
+        ];
         
-        #interact-ui { 
-            position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
-            color: #ff3333; font-family: monospace; font-size: 14px;
-            letter-spacing: 2px; z-
+        let loadedCount = 0;
+        const audioLoader = new THREE.AudioLoader();
+        audioLoader.crossOrigin = "anonymous"; 
+
+        const startBtn = document.getElementById('start-btn');
+        const statusText = document.getElementById('status-text');
+
+        stemFiles.forEach((file, index) => {
+            audioLoader.load(file, (buffer) => {
+                const stemAudio = new THREE.Audio(listener);
+                stemAudio.setBuffer(buffer);
+                stemAudio.setLoop(true);
+                stemAudio.setVolume(1); 
+                
+                stems[index] = stemAudio;
+                loadedCount++;
+                
+                if (loadedCount === stemFiles.length) {
+                    startBtn.disabled = false;
+                    startBtn.innerHTML = "INITIALIZE SIGNAL";
+                    statusText.innerHTML = "SYSTEM READY";
+                    statusText.style.color = "#888";
+                }
+            }, undefined, function(err) {
+                console.error("Audio Load Error:", err);
+                statusText.innerHTML = "AUDIO CONNECTION FAILED";
+            });
+        });
+
+        let isPlaying = false;
+        startBtn.addEventListener('click', () => {
+            if (!audioContext) {
+                audioContext = listener.context;
+                camera.add(listener);
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            if (!isPlaying) {
+                stems.forEach(stem => { if(stem.buffer && !stem.isPlaying) stem.play(); });
+                startBtn.innerHTML = "PAUSE SIGNAL";
+                statusText.innerHTML = "EMISSION ACTIVE";
+                statusText.style.color = "#33ff33";
+                isPlaying = true;
+            } else {
+                stems.forEach(stem => { if(stem.isPlaying) stem.pause(); });
+                startBtn.innerHTML = "INITIALIZE SIGNAL";
+                statusText.innerHTML = "SYSTEM PAUSED";
+                statusText.style.color = "#888";
+                isPlaying = false;
+            }
+        });
+
+        // --- 2. 3D VISUAL ENGINE ---
+        const canvas = document.getElementById('glass-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+        const scene = new THREE.Scene();
+        
+        const aspect = window.innerWidth / window.innerHeight;
+        const viewSize = 24; 
+        const camera = new THREE.OrthographicCamera(-viewSize * aspect / 2, viewSize * aspect / 2, viewSize / 2, -viewSize / 2, 0.1, 100);
+        camera.position.z = 15;
+
+        // --- MICRO-FROST TEXTURE GENERATOR ---
+        // This generates physical "tooth" for the glass so it catches light realistically
+        function createFrostTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const context = canvas.getContext('2d');
+            const imgData = context.createImageData(256, 256);
+            for(let i = 0; i < imgData.data.length; i += 4) {
+                const noise = Math.random() * 255;
+                imgData.data[i] = noise; imgData.data[i+1] = noise; imgData.data[i+2] = noise; imgData.data[i+3] = 255;
+            }
+            context.putImageData(imgData, 0, 0);
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+        const frostTex = createFrostTexture();
+
+        // --- THE "SMOKED GLASS" MATERIAL ---
+        const glassMaterial = new THREE.MeshPhysicalMaterial({
+            color: 0xf1118,        // Deep smoked glass base color
+            metalness: 0.1,         // Low metalness (dielectric) so it looks like glass, not metal
+            roughness: 0.1,         // The internal volume is frosted
+            roughnessMap: frostTex, // Applies the micro-frost to scatter the light
+            transparent: true,      // Allows light to pass through the object
+            opacity: 0.8,           // Slightly see-through
+            clearcoat: 1.0,         // Flawless outer glass shell
+            clearcoatRoughness: 0.05,
+            side: THREE.FrontSide
+        });
+
+        function createShard(points) {
+            const shape = new THREE.Shape();
+            shape.moveTo(points[0][0], points[0][1]);
+            for (let i = 1; i < points.length; i++) {
+                shape.lineTo(points[i][0], points[i][1]);
+            }
+            shape.lineTo(points[0][0], points[0][1]);
+
+            const extrudeSettings = { 
+                depth: 0.6, 
+                bevelEnabled: true, 
+                bevelSegments: 5, 
+                steps: 1, 
+                bevelSize: 0.12,     
+                bevelThickness: 0.15 
+            };
+
+            const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            
+            geometry.computeBoundingBox();
+            const center = new THREE.Vector3();
+            geometry.boundingBox.getCenter(center);
+            geometry.translate(-center.x, -center.y, -center.z);
+
+            const mesh = new THREE.Mesh(geometry, glassMaterial);
+            mesh.position.set(center.x, center.y, center.z);
+            
+            mesh.userData = { 
+                targetZ: center.z, 
+                baseZ: center.z,
+                targetRotX: 0,
+                targetRotY: 0
+            };
+            return mesh;
+        }
+
+        const shardsGroup = new THREE.Group();
+
+        // Shard layout
+        const shard1 = createShard([ [-22, 12], [2, 12], [-2, 2], [-22, 2] ]);
+        const shard2 = createShard([ [2.2, 11.8], [14, 11.8], [11, 2], [-1.8, 2] ]);
+        const shard3 = createShard([ [14.2, 11.8], [24, 11.8], [24, -6], [11.2, 1.8] ]);
+        const shard4 = createShard([ [-22, 1.8], [-2.2, 1.8], [1.5, -10], [-22, -10] ]);
+        const shard5 = createShard([ [-2, 1.6], [10.8, 1.6], [14, -10], [1.7, -10] ]);
+        const shard6 = createShard([ [14.2, -6.2], [24, -6.2], [24, -10], [14.2, -10] ]);
+
+        const shardsArray = [shard1, shard2, shard3, shard4, shard5, shard6];
+        shardsGroup.add(...shardsArray);
+        
+        shardsGroup.position.x = 4;
+        scene.add(shardsGroup);
+
+        // --- 3. STUDIO LIGHTING ---
+        scene.add(new THREE.AmbientLight(0xff, 0.2)); 
+
+        const dirLight = new THREE.DirectionalLight(0xeef5ff, 2.0); 
+        dirLight.position.set(-10, 20, 15);
+        scene.add(dirLight);
+
+        const fillLight = new THREE.DirectionalLight(0x8899aa, 1.0);
+        fillLight.position.set(15, -10, 5);
+        scene.add(fillLight);
+
+        // Colored Accent Lights: These sit off-screen and reflect off the clearcoat for that premium glass look
+        const accentBlue = new THREE.PointLight(0x2288ff, 2, 50);
+        accentBlue.position.set(20, 10, 5);
+        scene.add(accentBlue);
+        
+        const accentRed = new THREE.PointLight(0xff2255, 1.5, 50);
+        accentRed.position.set(-20, -10, 5);
+        scene.add(accentRed);
+
+        // The Mouse-Tracked Light (Creates the bright highlight sweeping across the glass)
+        const mouseLight = new THREE.PointLight(0xffffff, 8.0, 40);
+        mouseLight.position.set(0, 0, 4);
+        scene.add(mouseLight);
+
+        // --- 4. INTERACTION & RAYCASTING ---
+        const mouse = new THREE.Vector2();
+        const raycaster = new THREE.Raycaster();
+        const targetLightPos = new THREE.Vector3();
+        let groupTargetRotX = 0;
+        let groupTargetRotY = 0;
+
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            
+            targetLightPos.x = mouse.x * (viewSize * aspect / 2);
+            targetLightPos.y = mouse.y * (viewSize / 2);
+
+            groupTargetRotY = mouse.x * 0.08;
+            groupTargetRotX = -mouse.y * 0.08;
+        });
+
+        // --- 5. ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            mouseLight.position.x += (targetLightPos.x - mouseLight.position.x) * 0.15;
+            mouseLight.position.y += (targetLightPos.y - mouseLight.position.y) * 0.15;
+
+            shardsGroup.rotation.x += (groupTargetRotX - shardsGroup.rotation.x) * 0.05;
+            shardsGroup.rotation.y += (groupTargetRotY - shardsGroup.rotation.y) * 0.05;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(shardsArray);
+
+            shardsArray.forEach(shard => {
+                shard.userData.targetZ = shard.userData.baseZ;
+                shard.userData.targetRotX = 0;
+                shard.userData.targetRotY = 0;
+            });
+
+            if (intersects.length > 0) {
+                const hit = intersects[0];
+                const activeShard = hit.object;
+                
+                activeShard.userData.targetZ = activeShard.userData.baseZ + 4.0; 
+                activeShard.userData.targetRotX = -mouse.y * 0.6; 
+                activeShard.userData.targetRotY = mouse.x * 0.6; 
+            }
+
+            const time = Date.now() * 0.001;
+            shardsArray.forEach((shard, index) => {
+                const floatZ = Math.sin(time * 1.5 + index * 1.5) * 0.8;
+                const floatRotX = Math.sin(time * 1.2 + index) * 0.06;
+                const floatRotY = Math.cos(time * 1.3 + index) * 0.06;
+
+                const finalZ = shard.userData.targetZ + floatZ;
+                const finalRotX = shard.userData.targetRotX + floatRotX;
+                const finalRotY = shard.userData.targetRotY + floatRotY;
+
+                shard.position.z += (finalZ - shard.position.z) * 0.15;
+                shard.rotation.x += (finalRotX - shard.rotation.x) * 0.15;
+                shard.rotation.y += (finalRotY - shard.rotation.y) * 0.15;
+            });
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            const newAspect = window.innerWidth / window.innerHeight;
+            camera.left = -viewSize * newAspect / 2;
+            camera.right = viewSize * newAspect / 2;
+            camera.top = viewSize / 2;
+            camera.bottom = -viewSize / 2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
