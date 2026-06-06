@@ -9,7 +9,7 @@
             margin: 0; padding: 0; background-color: #0a0b0e; overflow: hidden; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             -webkit-font-smoothing: antialiased;
-            touch-action: none; /* Prevents default browser refreshing/bouncing on mobile */
+            touch-action: none; 
         }
 
         #glass-canvas {
@@ -20,53 +20,61 @@
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10;
             pointer-events: none; 
             display: flex; flex-direction: column; justify-content: center; padding-left: 8vw;
-            background: linear-gradient(90deg, rgba(10,11,14,0.7) 0%, rgba(10,11,14,0) 60%);
+            /* Subtler gradient now that the text is gone */
+            background: linear-gradient(90deg, rgba(10,11,14,0.4) 0%, rgba(10,11,14,0) 40%);
         }
 
         @media (max-width: 768px) {
-            #ui-layer { justify-content: flex-start; padding-top: 10vh; padding-right: 8vw; background: linear-gradient(180deg, rgba(10,11,14,0.8) 0%, rgba(10,11,14,0) 50%); }
-            h1 { font-size: 14vw; }
+            #ui-layer { justify-content: flex-end; padding-bottom: 20vh; padding-left: 5vw; padding-right: 5vw; background: linear-gradient(180deg, rgba(10,11,14,0) 0%, rgba(10,11,14,0.6) 100%); }
         }
 
-        .micro-text {
-            color: #666; font-family: monospace; font-size: 11px; letter-spacing: 3px;
-            text-transform: uppercase; margin-bottom: 20px;
+        .btn-container { 
+            pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-bottom: 15px; 
         }
 
-        h1 {
-            color: #e0e0e0; font-size: 7vw; font-weight: 500; letter-spacing: -0.04em;
-            margin: 0 0 20px 0; line-height: 1.05; max-width: 800px;
-        }
-
-        .sub-text {
-            color: #777; font-size: 15px; max-width: 400px; line-height: 1.6; margin-bottom: 40px;
-            font-weight: 400;
-        }
-
-        .btn-container { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-bottom: 15px; }
-
-        .btn-primary {
-            background: #e0e0e0; color: #000; border: none; border-radius: 30px;
+        /* Glassmorphism Button Style */
+        .btn-glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            color: rgba(255, 255, 255, 0.8);
             font-size: 13px; font-weight: 600; padding: 14px 28px; cursor: pointer; 
-            transition: all 0.2s ease;
+            text-decoration: none; transition: all 0.3s ease;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
         }
-        .btn-primary:hover { background: #fff; transform: scale(1.02); }
-        .btn-primary:disabled { background: #333; color: #555; cursor: not-allowed; }
         
-        .btn-ghost {
-            background: transparent; color: #888; border: 1px solid #444; border-radius: 30px;
-            font-size: 13px; font-weight: 600; padding: 14px 28px; cursor: pointer; 
-            text-decoration: none; transition: all 0.2s ease;
+        .btn-glass:hover { 
+            background: rgba(255, 255, 255, 0.08); 
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
         }
-        .btn-ghost:hover { border-color: #888; color: #e0e0e0; }
 
-        #status-text { color: #ff3333; font-family: monospace; font-size: 12px; letter-spacing: 1px; }
+        .btn-glass:disabled { 
+            background: rgba(255, 255, 255, 0.01); 
+            color: #444; 
+            border: 1px solid rgba(255, 255, 255, 0.02);
+            cursor: not-allowed; 
+            box-shadow: none;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        #status-text { color: #ff3333; font-family: monospace; font-size: 12px; letter-spacing: 1px; margin-top: 5px; }
 
         #scroll-hint {
-            position: absolute; bottom: 4vh; left: 8vw; color: #444; font-family: monospace; font-size: 10px; letter-spacing: 2px;
+            position: absolute; bottom: 4vh; left: 8vw; color: rgba(255,255,255,0.3); font-family: monospace; font-size: 10px; letter-spacing: 2px;
             animation: pulse 2s infinite; pointer-events: none;
         }
-        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+        
+        @media (max-width: 768px) {
+            #scroll-hint { left: 5vw; }
+        }
+        
+        @keyframes pulse { 0% { opacity: 0.2; } 50% { opacity: 0.8; } 100% { opacity: 0.2; } }
 
     </style>
 </head>
@@ -75,14 +83,9 @@
     <canvas id="glass-canvas"></canvas>
 
     <div id="ui-layer">
-        <div class="micro-text">DIGITAL MYSTICISM STUDIO</div>
-        <h1>White<br>Bronco.</h1>
-        <div class="sub-text">
-            Author dispersion, transmission, and refraction in the browser. It does three things only: Listens, Compresses, Exhales. No feedback loops. No personalization.
-        </div>
         <div class="btn-container">
-            <button class="btn-primary" id="start-btn" disabled>INITIALIZE SIGNAL</button>
-            <a href="https://al-khabir.bandcamp.com/track/whitebronco" target="_blank" class="btn-ghost">SECURE TRACK ↗</a>
+            <button class="btn-glass" id="start-btn" disabled>INITIALIZE SIGNAL</button>
+            <a href="https://al-khabir.bandcamp.com/track/whitebronco" target="_blank" class="btn-glass">SECURE TRACK ↗</a>
         </div>
         <div id="status-text">SYNCING DATA...</div>
         <div id="scroll-hint">SCROLL / DRAG TO ACCELERATE</div>
@@ -124,7 +127,7 @@
                     startBtn.disabled = false;
                     startBtn.innerHTML = "INITIALIZE SIGNAL";
                     statusText.innerHTML = "SYSTEM READY";
-                    statusText.style.color = "#888";
+                    statusText.style.color = "rgba(255,255,255,0.4)";
                 }
             }, undefined, function(err) {
                 console.error("Audio Load Error:", err);
@@ -146,14 +149,14 @@
                 stems.forEach(stem => { if(stem.buffer && !stem.isPlaying) stem.play(); });
                 startBtn.innerHTML = "PAUSE SIGNAL";
                 statusText.innerHTML = "EMISSION ACTIVE";
-                statusText.style.color = "#33ff33";
+                statusText.style.color = "#88ccff"; // Changed to soft blue to match orb
                 baseTravelSpeed = 0.15; 
                 isPlaying = true;
             } else {
                 stems.forEach(stem => { if(stem.isPlaying) stem.pause(); });
                 startBtn.innerHTML = "INITIALIZE SIGNAL";
                 statusText.innerHTML = "SYSTEM PAUSED";
-                statusText.style.color = "#888";
+                statusText.style.color = "rgba(255,255,255,0.4)";
                 baseTravelSpeed = 0.02; 
                 isPlaying = false;
             }
@@ -196,7 +199,7 @@
             roughnessMap: createFrostTexture(),  
             transmission: 0.8,       
             ior: 1.52,               
-            thickness: 0.5,          // Increased thickness for deeper internal reflections
+            thickness: 0.5,          
             transparent: true,      
             opacity: 0.9,            
             clearcoat: 1.0,          
@@ -229,7 +232,6 @@
             }
             shape.lineTo(points[0][0], points[0][1]);
 
-            // Thicker physical slabs while maintaining the massive monolithic scale
             const geometry = new THREE.ExtrudeGeometry(shape, { 
                 depth: 0.2 + Math.random() * 0.6, 
                 bevelEnabled: true, bevelSegments: 3, steps: 1, 
@@ -373,13 +375,12 @@
                 handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
                 touchStartY = e.touches[0].clientY;
             }
-        }, { passive: false }); // Changed to false so we can prevent default scrolling behaviors if needed
+        }, { passive: false }); 
         
         window.addEventListener('touchmove', (e) => {
             if (e.touches.length > 0) {
                 handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
                 const deltaY = touchStartY - e.touches[0].clientY;
-                // Significantly boosted mobile multiplier so swiping feels powerful
                 targetTravelSpeed += deltaY * 0.008;
                 targetTravelSpeed = Math.max(-0.2, Math.min(targetTravelSpeed, 1.5));
                 touchStartY = e.touches[0].clientY; 
