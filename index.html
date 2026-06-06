@@ -286,7 +286,14 @@
         manageInfiniteSpace();
 
         // --- 3. TRAVELING STUDIO LIGHTING ---
-        cameraRig.add(new THREE.AmbientLight(0xffffff, 0.2)); 
+        
+        // 1. Lift the base brightness slightly so pure blacks become visible
+        cameraRig.add(new THREE.AmbientLight(0xffffff, 0.5)); 
+
+        // 2. Hemisphere light for 3D separation (Sky color, Ground color, Intensity)
+        // This casts a subtle cool-grey light from above and pitch-black from below
+        const hemiLight = new THREE.HemisphereLight(0x2a3040, 0x0a0b0e, 1.0);
+        cameraRig.add(hemiLight);
 
         const dirLight = new THREE.DirectionalLight(0xeef5ff, 2.0); 
         dirLight.position.set(-10, 20, -15); 
