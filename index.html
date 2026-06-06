@@ -9,6 +9,7 @@
             margin: 0; padding: 0; background-color: #0a0b0e; overflow: hidden; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             -webkit-font-smoothing: antialiased;
+            touch-action: none; /* Prevents default browser refreshing/bouncing on mobile */
         }
 
         #glass-canvas {
@@ -193,9 +194,9 @@
             metalness: 0.9,          
             roughness: 0.1,         
             roughnessMap: createFrostTexture(),  
-            transmission: 0.7,       
+            transmission: 0.8,       
             ior: 1.52,               
-            thickness: 0.1,          // Thinner material for razor-sharp refractions
+            thickness: 0.5,          // Increased thickness for deeper internal reflections
             transparent: true,      
             opacity: 0.9,            
             clearcoat: 1.0,          
@@ -205,13 +206,11 @@
 
         const shards = [];
         let spawnZTarget = 0;
-        const SPAWN_INTERVAL = -25; // Spaced out further since pieces are so large
+        const SPAWN_INTERVAL = -25; 
 
         function generateRandomPoints() {
             const points = [];
-            // Fewer points (3 to 6) create sharper, more aggressive monolithic shapes
             const numPoints = 3 + Math.floor(Math.random() * 4); 
-            // Massive radius multiplier for giant panels
             const baseRadius = 15 + Math.random() * 25; 
             for(let i = 0; i < numPoints; i++) {
                 const angle = (i / numPoints) * Math.PI * 2;
@@ -230,11 +229,11 @@
             }
             shape.lineTo(points[0][0], points[0][1]);
 
-            // Depth drastically reduced to create thin sheets
+            // Thicker physical slabs while maintaining the massive monolithic scale
             const geometry = new THREE.ExtrudeGeometry(shape, { 
-                depth: 0.05 + Math.random() * 0.15, 
-                bevelEnabled: true, bevelSegments: 2, steps: 1, 
-                bevelSize: 0.02, bevelThickness: 0.02 
+                depth: 0.2 + Math.random() * 0.6, 
+                bevelEnabled: true, bevelSegments: 3, steps: 1, 
+                bevelSize: 0.05, bevelThickness: 0.05 
             });
             
             geometry.computeBoundingBox();
@@ -244,13 +243,12 @@
 
             const mesh = new THREE.Mesh(geometry, glassMaterial);
             
-            // Wider spread so they cross the screen dynamically
             const spreadX = (Math.random() - 0.5) * 60;
             const spreadY = (Math.random() - 0.5) * 40;
             mesh.position.set(spreadX, spreadY, zDepth);
             
             mesh.userData = {
-                rotSpeedX: (Math.random() - 0.5) * 0.005, // Slower rotation for a heavy, monolithic feel
+                rotSpeedX: (Math.random() - 0.5) * 0.005,
                 rotSpeedY: (Math.random() - 0.5) * 0.005,
                 rotSpeedZ: (Math.random() - 0.5) * 0.005,
                 driftX: (Math.random() - 0.5) * 0.01,
@@ -266,7 +264,6 @@
         function manageInfiniteSpace() {
             const drawDistance = cameraRig.position.z - 150; 
             while (spawnZTarget > drawDistance) {
-                // Fewer spawn count because they are massive
                 const count = 1 + Math.floor(Math.random() * 2);
                 for(let i=0; i<count; i++) {
                     createShard(spawnZTarget + (Math.random() * 5));
@@ -376,17 +373,18 @@
                 handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
                 touchStartY = e.touches[0].clientY;
             }
-        }, { passive: true });
+        }, { passive: false }); // Changed to false so we can prevent default scrolling behaviors if needed
         
         window.addEventListener('touchmove', (e) => {
             if (e.touches.length > 0) {
                 handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
                 const deltaY = touchStartY - e.touches[0].clientY;
-                targetTravelSpeed += deltaY * 0.001;
-                targetTravelSpeed = Math.max(-0.2, Math.min(targetTravelSpeed, 1.0));
+                // Significantly boosted mobile multiplier so swiping feels powerful
+                targetTravelSpeed += deltaY * 0.008;
+                targetTravelSpeed = Math.max(-0.2, Math.min(targetTravelSpeed, 1.5));
                 touchStartY = e.touches[0].clientY; 
             }
-        }, { passive: true });
+        }, { passive: false });
 
         // --- 6. RESPONSIVENESS & ANIMATION LOOP ---
         function updateLayoutForDevice() {
@@ -427,7 +425,6 @@
                 const distZ = shard.position.z - cameraRig.position.z;
                 if (distZ < 10 && distZ > -10) {
                     const repelStrength = Math.max(0, 1 - Math.abs(distZ) / 10);
-                    // Repel strength slowed down so massive panels don't jitter unnaturally
                     shard.position.x += (shard.position.x > 0 ? 0.02 : -0.02) * repelStrength;
                     shard.position.y += (shard.position.y > 0 ? 0.02 : -0.02) * repelStrength;
                 }
