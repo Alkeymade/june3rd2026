@@ -166,7 +166,6 @@
 
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0x0a0b0e);
-        // Fog removed to allow pure high-contrast light reflections in the deep space void
         
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
         
@@ -174,7 +173,6 @@
         scene.add(cameraRig);
         cameraRig.add(camera);
 
-        // --- GLASS MATERIAL ---
         function createFrostTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 256; canvas.height = 256;
@@ -191,32 +189,33 @@
         }
 
         const glassMaterial = new THREE.MeshPhysicalMaterial({
-            color: 0x0f1118,         
-            metalness: 0.05,         
-            roughness: 0.15,         
+            color: 0xccddff,         
+            metalness: 0.9,          
+            roughness: 0.1,         
             roughnessMap: createFrostTexture(),  
-            transmission: 1.0,       
+            transmission: 0.7,       
             ior: 1.52,               
-            thickness: 2.0,          
+            thickness: 0.1,          // Thinner material for razor-sharp refractions
             transparent: true,      
-            opacity: 1.0,            
+            opacity: 0.9,            
             clearcoat: 1.0,          
             clearcoatRoughness: 0.05,
             side: THREE.DoubleSide   
         });
 
-        // --- PROCEDURAL SHARD GENERATOR ---
         const shards = [];
         let spawnZTarget = 0;
-        const SPAWN_INTERVAL = -15; 
+        const SPAWN_INTERVAL = -25; // Spaced out further since pieces are so large
 
         function generateRandomPoints() {
             const points = [];
-            const numPoints = 4 + Math.floor(Math.random() * 5); 
-            const baseRadius = 2 + Math.random() * 4;
+            // Fewer points (3 to 6) create sharper, more aggressive monolithic shapes
+            const numPoints = 3 + Math.floor(Math.random() * 4); 
+            // Massive radius multiplier for giant panels
+            const baseRadius = 15 + Math.random() * 25; 
             for(let i = 0; i < numPoints; i++) {
                 const angle = (i / numPoints) * Math.PI * 2;
-                const r = baseRadius * (0.4 + Math.random() * 0.6); 
+                const r = baseRadius * (0.3 + Math.random() * 0.7); 
                 points.push([Math.cos(angle) * r, Math.sin(angle) * r]);
             }
             return points;
@@ -231,10 +230,11 @@
             }
             shape.lineTo(points[0][0], points[0][1]);
 
+            // Depth drastically reduced to create thin sheets
             const geometry = new THREE.ExtrudeGeometry(shape, { 
-                depth: 0.6 + Math.random() * 1.5, 
-                bevelEnabled: true, bevelSegments: 3, steps: 1, 
-                bevelSize: 0.1, bevelThickness: 0.1 
+                depth: 0.05 + Math.random() * 0.15, 
+                bevelEnabled: true, bevelSegments: 2, steps: 1, 
+                bevelSize: 0.02, bevelThickness: 0.02 
             });
             
             geometry.computeBoundingBox();
@@ -244,16 +244,17 @@
 
             const mesh = new THREE.Mesh(geometry, glassMaterial);
             
-            const spreadX = (Math.random() - 0.5) * 40;
-            const spreadY = (Math.random() - 0.5) * 30;
+            // Wider spread so they cross the screen dynamically
+            const spreadX = (Math.random() - 0.5) * 60;
+            const spreadY = (Math.random() - 0.5) * 40;
             mesh.position.set(spreadX, spreadY, zDepth);
             
             mesh.userData = {
-                rotSpeedX: (Math.random() - 0.5) * 0.01,
-                rotSpeedY: (Math.random() - 0.5) * 0.01,
-                rotSpeedZ: (Math.random() - 0.5) * 0.01,
-                driftX: (Math.random() - 0.5) * 0.02,
-                driftY: (Math.random() - 0.5) * 0.02,
+                rotSpeedX: (Math.random() - 0.5) * 0.005, // Slower rotation for a heavy, monolithic feel
+                rotSpeedY: (Math.random() - 0.5) * 0.005,
+                rotSpeedZ: (Math.random() - 0.5) * 0.005,
+                driftX: (Math.random() - 0.5) * 0.01,
+                driftY: (Math.random() - 0.5) * 0.01,
             };
 
             mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
@@ -263,10 +264,10 @@
         }
 
         function manageInfiniteSpace() {
-            // Extended draw distance to 120 so shards spawn deep in the darkness to avoid pop-in without fog
-            const drawDistance = cameraRig.position.z - 120; 
+            const drawDistance = cameraRig.position.z - 150; 
             while (spawnZTarget > drawDistance) {
-                const count = 2 + Math.floor(Math.random() * 3);
+                // Fewer spawn count because they are massive
+                const count = 1 + Math.floor(Math.random() * 2);
                 for(let i=0; i<count; i++) {
                     createShard(spawnZTarget + (Math.random() * 5));
                 }
@@ -275,7 +276,7 @@
 
             for (let i = shards.length - 1; i >= 0; i--) {
                 const s = shards[i];
-                if (s.position.z > cameraRig.position.z + 10) {
+                if (s.position.z > cameraRig.position.z + 20) {
                     scene.remove(s);
                     s.geometry.dispose(); 
                     shards.splice(i, 1);
@@ -285,13 +286,52 @@
 
         manageInfiniteSpace();
 
-        // --- 3. TRAVELING STUDIO LIGHTING ---
-        
-        // 1. Lift the base brightness slightly so pure blacks become visible
-        cameraRig.add(new THREE.AmbientLight(0xffffff, 0.5)); 
+        // --- 3. THE GLOWING ORBIT NAVIGATOR ---
+        const orbitGroup = new THREE.Group();
+        cameraRig.add(orbitGroup);
 
-        // 2. Hemisphere light for 3D separation (Sky color, Ground color, Intensity)
-        // This casts a subtle cool-grey light from above and pitch-black from below
+        function createVolumetricGlow() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; 
+            canvas.height = 256;
+            const context = canvas.getContext('2d');
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width / 2;
+            
+            const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+            gradient.addColorStop(0.1, 'rgba(150, 220, 255, 0.8)');
+            gradient.addColorStop(0.4, 'rgba(50, 100, 255, 0.3)');
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+            
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const glowMaterial = new THREE.SpriteMaterial({
+            map: createVolumetricGlow(),
+            color: 0xffffff,
+            transparent: true,
+            blending: THREE.AdditiveBlending, 
+            depthWrite: false 
+        });
+
+        const glowSprite = new THREE.Sprite(glowMaterial);
+        glowSprite.scale.set(12, 12, 1);
+        orbitGroup.add(glowSprite);
+
+        const orbLight = new THREE.PointLight(0xccddff, 8.0, 60);
+        orbitGroup.add(orbLight);
+
+        let orbTime = 0;
+
+        // --- 4. TRAVELING STUDIO LIGHTING ---
+        cameraRig.add(new THREE.AmbientLight(0xffffff, 0.4)); 
+
         const hemiLight = new THREE.HemisphereLight(0x2a3040, 0x0a0b0e, 1.0);
         cameraRig.add(hemiLight);
 
@@ -303,19 +343,11 @@
         fillLight.position.set(15, -10, 5);
         cameraRig.add(fillLight);
 
-        const accentBlue = new THREE.PointLight(0x2288ff, 3, 60);
-        accentBlue.position.set(20, 10, -10);
-        cameraRig.add(accentBlue);
-        
-        const accentRed = new THREE.PointLight(0xff2255, 2.5, 60);
-        accentRed.position.set(-20, -10, -10);
-        cameraRig.add(accentRed);
-
-        const mouseLight = new THREE.PointLight(0xffffff, 6.0, 40);
+        const mouseLight = new THREE.PointLight(0xffffff, 4.0, 40);
         mouseLight.position.set(0, 0, -5);
         cameraRig.add(mouseLight);
 
-        // --- 4. INTERACTION ---
+        // --- 5. INTERACTION ---
         let targetTravelSpeed = 0;
         let currentTravelSpeed = 0;
         const targetLightPos = new THREE.Vector3();
@@ -356,7 +388,7 @@
             }
         }, { passive: true });
 
-        // --- 5. RESPONSIVENESS & ANIMATION LOOP ---
+        // --- 6. RESPONSIVENESS & ANIMATION LOOP ---
         function updateLayoutForDevice() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
@@ -376,6 +408,14 @@
             
             cameraRig.position.z -= currentTravelSpeed;
 
+            orbTime += 0.01 + (currentTravelSpeed * 0.05);
+            orbitGroup.position.x = Math.sin(orbTime * 1.5) * 6;
+            orbitGroup.position.y = Math.cos(orbTime * 1.1) * 4;
+            orbitGroup.position.z = Math.sin(orbTime * 0.8) * 10 - 25; 
+
+            const pulse = 1 + Math.sin(orbTime * 5) * 0.1;
+            glowSprite.scale.set(12 * pulse, 12 * pulse, 1);
+
             shards.forEach(shard => {
                 shard.rotation.x += shard.userData.rotSpeedX;
                 shard.rotation.y += shard.userData.rotSpeedY;
@@ -387,8 +427,9 @@
                 const distZ = shard.position.z - cameraRig.position.z;
                 if (distZ < 10 && distZ > -10) {
                     const repelStrength = Math.max(0, 1 - Math.abs(distZ) / 10);
-                    shard.position.x += (shard.position.x > 0 ? 0.05 : -0.05) * repelStrength;
-                    shard.position.y += (shard.position.y > 0 ? 0.05 : -0.05) * repelStrength;
+                    // Repel strength slowed down so massive panels don't jitter unnaturally
+                    shard.position.x += (shard.position.x > 0 ? 0.02 : -0.02) * repelStrength;
+                    shard.position.y += (shard.position.y > 0 ? 0.02 : -0.02) * repelStrength;
                 }
             });
 
