@@ -20,7 +20,7 @@
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10;
             pointer-events: none; 
             display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
-            padding-bottom: 20vh; /* Pushes the UI down into the lower third */
+            padding-bottom: 20vh;
             box-sizing: border-box;
             background: radial-gradient(circle at center 75%, rgba(10,11,14,0.3) 0%, rgba(10,11,14,0) 50%);
         }
@@ -29,7 +29,6 @@
             pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 20px; z-index: 20;
         }
 
-        /* Enhanced Glassmorphism Button Style */
         .btn-glass {
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(24px);
@@ -182,11 +181,12 @@
         scene.add(cameraRig);
         cameraRig.add(camera);
 
+        // Generates the cloudy noise pattern for the frost
         function createFrostTexture() {
             const canvas = document.createElement('canvas');
-            canvas.width = 256; canvas.height = 256;
+            canvas.width = 512; canvas.height = 512; // Higher res for smoother cloudiness
             const context = canvas.getContext('2d');
-            const imgData = context.createImageData(256, 256);
+            const imgData = context.createImageData(512, 512);
             for(let i = 0; i < imgData.data.length; i += 4) {
                 const noise = Math.random() * 255;
                 imgData.data[i] = noise; imgData.data[i+1] = noise; imgData.data[i+2] = noise; imgData.data[i+3] = 255;
@@ -197,17 +197,18 @@
             return tex;
         }
 
+        // UPDATED: Milky, cloudy glass material
         const glassMaterial = new THREE.MeshPhysicalMaterial({
-            color: 0xccddff,         
-            metalness: 0.9,          
-            roughness: 0.1,         
+            color: 0xffffff,         // Pure white base to catch the colored lights
+            metalness: 0.15,         // Drastically reduced to prevent mirror-like reflections
+            roughness: 0.35,         // Increased roughness diffuses the light (the "frost")
             roughnessMap: createFrostTexture(),  
-            transmission: 0.8,       
-            ior: 1.52,               
-            thickness: 0.5,          
+            transmission: 0.95,      // Very high transmission lets the colored light pass through
+            ior: 1.6,                // Slightly higher IOR to bend the light aggressively
+            thickness: 2.5,          // Deeper thickness creates a volumetric "milky" density
             transparent: true,      
-            opacity: 0.9,            
-            clearcoat: 1.0,          
+            opacity: 1.0,            
+            clearcoat: 1.0,          // High clearcoat ensures the outside surface remains polished like wet glass
             clearcoatRoughness: 0.05,
             side: THREE.DoubleSide   
         });
@@ -328,8 +329,14 @@
         glowSprite.scale.set(12, 12, 1);
         orbitGroup.add(glowSprite);
 
-        const orbLight = new THREE.PointLight(0xccddff, 8.0, 60);
-        orbitGroup.add(orbLight);
+        // Core blue light
+        const orbLightBlue = new THREE.PointLight(0xccddff, 6.0, 60);
+        orbitGroup.add(orbLightBlue);
+        
+        // Added a subtle secondary pink light to force chromatic refraction through the milk glass
+        const orbLightPink = new THREE.PointLight(0xffaadd, 4.0, 40);
+        orbLightPink.position.set(1.5, -1.5, 0);
+        orbitGroup.add(orbLightPink);
 
         let orbTime = 0;
 
