@@ -19,62 +19,66 @@
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10;
             pointer-events: none; 
-            display: flex; flex-direction: column; justify-content: center; padding-left: 8vw;
-            /* Subtler gradient now that the text is gone */
-            background: linear-gradient(90deg, rgba(10,11,14,0.4) 0%, rgba(10,11,14,0) 40%);
-        }
-
-        @media (max-width: 768px) {
-            #ui-layer { justify-content: flex-end; padding-bottom: 20vh; padding-left: 5vw; padding-right: 5vw; background: linear-gradient(180deg, rgba(10,11,14,0) 0%, rgba(10,11,14,0.6) 100%); }
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+            padding-bottom: 20vh; /* Pushes the UI down into the lower third */
+            box-sizing: border-box;
+            background: radial-gradient(circle at center 75%, rgba(10,11,14,0.3) 0%, rgba(10,11,14,0) 50%);
         }
 
         .btn-container { 
-            pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-bottom: 15px; 
+            pointer-events: auto; display: flex; flex-direction: column; align-items: center; gap: 20px; z-index: 20;
         }
 
-        /* Glassmorphism Button Style */
+        /* Enhanced Glassmorphism Button Style */
         .btn-glass {
-            background: rgba(255, 255, 255, 0.03);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 30px;
-            color: rgba(255, 255, 255, 0.8);
-            font-size: 13px; font-weight: 600; padding: 14px 28px; cursor: pointer; 
-            text-decoration: none; transition: all 0.3s ease;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 40px;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 14px; font-weight: 500; letter-spacing: 1px; padding: 16px 40px; cursor: pointer; 
+            text-decoration: none; transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+            box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            text-align: center;
+            min-width: 200px;
         }
         
         .btn-glass:hover { 
-            background: rgba(255, 255, 255, 0.08); 
-            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.12); 
+            border: 1px solid rgba(255, 255, 255, 0.3);
             color: #fff;
-            transform: translateY(-2px);
-            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 15px 50px 0 rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-glass:active {
+            transform: translateY(1px);
         }
 
         .btn-glass:disabled { 
-            background: rgba(255, 255, 255, 0.01); 
-            color: #444; 
-            border: 1px solid rgba(255, 255, 255, 0.02);
+            background: rgba(255, 255, 255, 0.02); 
+            color: rgba(255, 255, 255, 0.3); 
+            border: 1px solid rgba(255, 255, 255, 0.05);
             cursor: not-allowed; 
             box-shadow: none;
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            transform: none;
         }
 
-        #status-text { color: #ff3333; font-family: monospace; font-size: 12px; letter-spacing: 1px; margin-top: 5px; }
+        #status-text { 
+            color: rgba(255,255,255,0.4); font-family: monospace; font-size: 11px; letter-spacing: 2px; margin-top: 15px; 
+            text-align: center; transition: color 0.3s ease;
+        }
 
         #scroll-hint {
-            position: absolute; bottom: 4vh; left: 8vw; color: rgba(255,255,255,0.3); font-family: monospace; font-size: 10px; letter-spacing: 2px;
-            animation: pulse 2s infinite; pointer-events: none;
+            position: absolute; bottom: 4vh; width: 100vw; text-align: center; 
+            color: rgba(255,255,255,0.3); font-family: monospace; font-size: 10px; letter-spacing: 3px;
+            animation: pulse 2.5s infinite; pointer-events: none;
         }
         
-        @media (max-width: 768px) {
-            #scroll-hint { left: 5vw; }
-        }
-        
-        @keyframes pulse { 0% { opacity: 0.2; } 50% { opacity: 0.8; } 100% { opacity: 0.2; } }
+        @keyframes pulse { 0% { opacity: 0.1; } 50% { opacity: 0.7; } 100% { opacity: 0.1; } }
 
     </style>
 </head>
@@ -88,8 +92,9 @@
             <a href="https://al-khabir.bandcamp.com/track/whitebronco" target="_blank" class="btn-glass">SECURE TRACK ↗</a>
         </div>
         <div id="status-text">SYNCING DATA...</div>
-        <div id="scroll-hint">SCROLL / DRAG TO ACCELERATE</div>
     </div>
+    
+    <div id="scroll-hint">SCROLL / DRAG TO ACCELERATE</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -127,11 +132,11 @@
                     startBtn.disabled = false;
                     startBtn.innerHTML = "INITIALIZE SIGNAL";
                     statusText.innerHTML = "SYSTEM READY";
-                    statusText.style.color = "rgba(255,255,255,0.4)";
                 }
             }, undefined, function(err) {
                 console.error("Audio Load Error:", err);
                 statusText.innerHTML = "AUDIO CONNECTION FAILED";
+                statusText.style.color = "#ff3333";
             });
         });
 
@@ -149,7 +154,7 @@
                 stems.forEach(stem => { if(stem.buffer && !stem.isPlaying) stem.play(); });
                 startBtn.innerHTML = "PAUSE SIGNAL";
                 statusText.innerHTML = "EMISSION ACTIVE";
-                statusText.style.color = "#88ccff"; // Changed to soft blue to match orb
+                statusText.style.color = "#88ccff"; 
                 baseTravelSpeed = 0.15; 
                 isPlaying = true;
             } else {
