@@ -11,21 +11,19 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* 3D Canvas */
         #glass-canvas {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 1;
         }
 
-        /* UI Overlay */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10;
             pointer-events: none; 
             display: flex; flex-direction: column; justify-content: center; padding-left: 8vw;
+            background: linear-gradient(90deg, rgba(10,11,14,0.7) 0%, rgba(10,11,14,0) 60%);
         }
 
-        /* Mobile specific styling adjustments */
         @media (max-width: 768px) {
-            #ui-layer { justify-content: flex-start; padding-top: 10vh; padding-right: 8vw; }
+            #ui-layer { justify-content: flex-start; padding-top: 10vh; padding-right: 8vw; background: linear-gradient(180deg, rgba(10,11,14,0.8) 0%, rgba(10,11,14,0) 50%); }
             h1 { font-size: 14vw; }
         }
 
@@ -63,6 +61,12 @@
 
         #status-text { color: #ff3333; font-family: monospace; font-size: 12px; letter-spacing: 1px; }
 
+        #scroll-hint {
+            position: absolute; bottom: 4vh; left: 8vw; color: #444; font-family: monospace; font-size: 10px; letter-spacing: 2px;
+            animation: pulse 2s infinite; pointer-events: none;
+        }
+        @keyframes pulse { 0% { opacity: 0.3; } 50% { opacity: 1; } 100% { opacity: 0.3; } }
+
     </style>
 </head>
 <body>
@@ -80,6 +84,7 @@
             <a href="https://al-khabir.bandcamp.com/track/whitebronco" target="_blank" class="btn-ghost">SECURE TRACK ↗</a>
         </div>
         <div id="status-text">SYNCING DATA...</div>
+        <div id="scroll-hint">SCROLL / DRAG TO ACCELERATE</div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -111,7 +116,6 @@
                 stemAudio.setBuffer(buffer);
                 stemAudio.setLoop(true);
                 stemAudio.setVolume(1); 
-                
                 stems[index] = stemAudio;
                 loadedCount++;
                 
@@ -128,44 +132,49 @@
         });
 
         let isPlaying = false;
+        let baseTravelSpeed = 0.02; 
         
-        // iOS requires audio context manipulation to happen inside a direct user interaction event
         startBtn.addEventListener('click', () => {
             if (!audioContext) {
                 audioContext = listener.context;
                 camera.add(listener);
             }
-            if (audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
+            if (audioContext.state === 'suspended') audioContext.resume();
+            
             if (!isPlaying) {
                 stems.forEach(stem => { if(stem.buffer && !stem.isPlaying) stem.play(); });
                 startBtn.innerHTML = "PAUSE SIGNAL";
                 statusText.innerHTML = "EMISSION ACTIVE";
                 statusText.style.color = "#33ff33";
+                baseTravelSpeed = 0.15; 
                 isPlaying = true;
             } else {
                 stems.forEach(stem => { if(stem.isPlaying) stem.pause(); });
                 startBtn.innerHTML = "INITIALIZE SIGNAL";
                 statusText.innerHTML = "SYSTEM PAUSED";
                 statusText.style.color = "#888";
+                baseTravelSpeed = 0.02; 
                 isPlaying = false;
             }
         });
 
-        // --- 2. 3D VISUAL ENGINE ---
+        // --- 2. 3D VISUAL ENGINE & INFINITE SPACE ---
         const canvas = document.getElementById('glass-canvas');
-        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
         const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0a0b0e);
+        // Fog removed to allow pure high-contrast light reflections in the deep space void
         
-        const aspect = window.innerWidth / window.innerHeight;
-        const viewSize = 24; 
-        const camera = new THREE.OrthographicCamera(-viewSize * aspect / 2, viewSize * aspect / 2, viewSize / 2, -viewSize / 2, 0.1, 100);
-        camera.position.z = 15;
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+        
+        const cameraRig = new THREE.Group();
+        scene.add(cameraRig);
+        cameraRig.add(camera);
 
+        // --- GLASS MATERIAL ---
         function createFrostTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 256; canvas.height = 256;
@@ -180,20 +189,15 @@
             tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
             return tex;
         }
-        const frostTex = createFrostTexture();
 
-        // --- THE "SMOKED GLASS" MATERIAL ---
         const glassMaterial = new THREE.MeshPhysicalMaterial({
             color: 0x0f1118,         
             metalness: 0.05,         
             roughness: 0.15,         
-            roughnessMap: frostTex,  
-            
-            // --- THE GLASS EFFECT ENGINES ---
+            roughnessMap: createFrostTexture(),  
             transmission: 1.0,       
             ior: 1.52,               
-            thickness: 1.5,          
-            
+            thickness: 2.0,          
             transparent: true,      
             opacity: 1.0,            
             clearcoat: 1.0,          
@@ -201,7 +205,25 @@
             side: THREE.DoubleSide   
         });
 
-        function createShard(points) {
+        // --- PROCEDURAL SHARD GENERATOR ---
+        const shards = [];
+        let spawnZTarget = 0;
+        const SPAWN_INTERVAL = -15; 
+
+        function generateRandomPoints() {
+            const points = [];
+            const numPoints = 4 + Math.floor(Math.random() * 5); 
+            const baseRadius = 2 + Math.random() * 4;
+            for(let i = 0; i < numPoints; i++) {
+                const angle = (i / numPoints) * Math.PI * 2;
+                const r = baseRadius * (0.4 + Math.random() * 0.6); 
+                points.push([Math.cos(angle) * r, Math.sin(angle) * r]);
+            }
+            return points;
+        }
+
+        function createShard(zDepth) {
+            const points = generateRandomPoints();
             const shape = new THREE.Shape();
             shape.moveTo(points[0][0], points[0][1]);
             for (let i = 1; i < points.length; i++) {
@@ -209,16 +231,11 @@
             }
             shape.lineTo(points[0][0], points[0][1]);
 
-            const extrudeSettings = { 
-                depth: 0.6, 
-                bevelEnabled: true, 
-                bevelSegments: 5, 
-                steps: 1, 
-                bevelSize: 0.12,     
-                bevelThickness: 0.15 
-            };
-
-            const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            const geometry = new THREE.ExtrudeGeometry(shape, { 
+                depth: 0.6 + Math.random() * 1.5, 
+                bevelEnabled: true, bevelSegments: 3, steps: 1, 
+                bevelSize: 0.1, bevelThickness: 0.1 
+            });
             
             geometry.computeBoundingBox();
             const center = new THREE.Vector3();
@@ -226,147 +243,149 @@
             geometry.translate(-center.x, -center.y, -center.z);
 
             const mesh = new THREE.Mesh(geometry, glassMaterial);
-            mesh.position.set(center.x, center.y, center.z);
             
-            mesh.userData = { 
-                targetZ: center.z, 
-                baseZ: center.z,
-                targetRotX: 0,
-                targetRotY: 0
+            const spreadX = (Math.random() - 0.5) * 40;
+            const spreadY = (Math.random() - 0.5) * 30;
+            mesh.position.set(spreadX, spreadY, zDepth);
+            
+            mesh.userData = {
+                rotSpeedX: (Math.random() - 0.5) * 0.01,
+                rotSpeedY: (Math.random() - 0.5) * 0.01,
+                rotSpeedZ: (Math.random() - 0.5) * 0.01,
+                driftX: (Math.random() - 0.5) * 0.02,
+                driftY: (Math.random() - 0.5) * 0.02,
             };
-            return mesh;
+
+            mesh.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, 0);
+
+            scene.add(mesh);
+            shards.push(mesh);
         }
 
-        const shardsGroup = new THREE.Group();
+        function manageInfiniteSpace() {
+            // Extended draw distance to 120 so shards spawn deep in the darkness to avoid pop-in without fog
+            const drawDistance = cameraRig.position.z - 120; 
+            while (spawnZTarget > drawDistance) {
+                const count = 2 + Math.floor(Math.random() * 3);
+                for(let i=0; i<count; i++) {
+                    createShard(spawnZTarget + (Math.random() * 5));
+                }
+                spawnZTarget += SPAWN_INTERVAL;
+            }
 
-        const shard1 = createShard([ [-22, 12], [2, 12], [-2, 2], [-22, 2] ]);
-        const shard2 = createShard([ [2.2, 11.8], [14, 11.8], [11, 2], [-1.8, 2] ]);
-        const shard3 = createShard([ [14.2, 11.8], [24, 11.8], [24, -6], [11.2, 1.8] ]);
-        const shard4 = createShard([ [-22, 1.8], [-2.2, 1.8], [1.5, -10], [-22, -10] ]);
-        const shard5 = createShard([ [-2, 1.6], [10.8, 1.6], [14, -10], [1.7, -10] ]);
-        const shard6 = createShard([ [14.2, -6.2], [24, -6.2], [24, -10], [14.2, -10] ]);
+            for (let i = shards.length - 1; i >= 0; i--) {
+                const s = shards[i];
+                if (s.position.z > cameraRig.position.z + 10) {
+                    scene.remove(s);
+                    s.geometry.dispose(); 
+                    shards.splice(i, 1);
+                }
+            }
+        }
 
-        const shardsArray = [shard1, shard2, shard3, shard4, shard5, shard6];
-        shardsGroup.add(...shardsArray);
-        scene.add(shardsGroup);
+        manageInfiniteSpace();
 
-        // --- 3. STUDIO LIGHTING ---
-        scene.add(new THREE.AmbientLight(0xff, 0.2)); 
+        // --- 3. TRAVELING STUDIO LIGHTING ---
+        cameraRig.add(new THREE.AmbientLight(0xffffff, 0.2)); 
 
         const dirLight = new THREE.DirectionalLight(0xeef5ff, 2.0); 
-        dirLight.position.set(-10, 20, 15);
-        scene.add(dirLight);
+        dirLight.position.set(-10, 20, -15); 
+        cameraRig.add(dirLight);
 
         const fillLight = new THREE.DirectionalLight(0x8899aa, 1.0);
         fillLight.position.set(15, -10, 5);
-        scene.add(fillLight);
+        cameraRig.add(fillLight);
 
-        const accentBlue = new THREE.PointLight(0x2288ff, 2, 50);
-        accentBlue.position.set(20, 10, 5);
-        scene.add(accentBlue);
+        const accentBlue = new THREE.PointLight(0x2288ff, 3, 60);
+        accentBlue.position.set(20, 10, -10);
+        cameraRig.add(accentBlue);
         
-        const accentRed = new THREE.PointLight(0xff2255, 1.5, 50);
-        accentRed.position.set(-20, -10, 5);
-        scene.add(accentRed);
+        const accentRed = new THREE.PointLight(0xff2255, 2.5, 60);
+        accentRed.position.set(-20, -10, -10);
+        cameraRig.add(accentRed);
 
-        const mouseLight = new THREE.PointLight(0xffffff, 8.0, 40);
-        mouseLight.position.set(0, 0, 4);
-        scene.add(mouseLight);
+        const mouseLight = new THREE.PointLight(0xffffff, 6.0, 40);
+        mouseLight.position.set(0, 0, -5);
+        cameraRig.add(mouseLight);
 
-        // --- 4. INTERACTION & RAYCASTING ---
-        const mouse = new THREE.Vector2();
-        const raycaster = new THREE.Raycaster();
+        // --- 4. INTERACTION ---
+        let targetTravelSpeed = 0;
+        let currentTravelSpeed = 0;
         const targetLightPos = new THREE.Vector3();
-        let groupTargetRotX = 0;
-        let groupTargetRotY = 0;
 
         function handlePointerMove(clientX, clientY) {
-            mouse.x = (clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+            const mx = (clientX / window.innerWidth) * 2 - 1;
+            const my = -(clientY / window.innerHeight) * 2 + 1;
             
-            targetLightPos.x = mouse.x * (viewSize * aspect / 2);
-            targetLightPos.y = mouse.y * (viewSize / 2);
+            targetLightPos.x = mx * 10;
+            targetLightPos.y = my * 10;
 
-            groupTargetRotY = mouse.x * 0.08;
-            groupTargetRotX = -mouse.y * 0.08;
+            camera.rotation.y = mx * -0.1;
+            camera.rotation.x = my * 0.1;
         }
 
-        // Mouse events
         window.addEventListener('mousemove', (e) => handlePointerMove(e.clientX, e.clientY));
 
-        // Touch events for iPhone/Mobile
-        window.addEventListener('touchmove', (e) => {
-            if (e.touches.length > 0) handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        window.addEventListener('wheel', (e) => {
+            targetTravelSpeed += e.deltaY * 0.005; 
+            targetTravelSpeed = Math.max(-0.2, Math.min(targetTravelSpeed, 1.5)); 
+        });
+
+        let touchStartY = 0;
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+                touchStartY = e.touches[0].clientY;
+            }
         }, { passive: true });
         
-        window.addEventListener('touchstart', (e) => {
-            if (e.touches.length > 0) handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+                const deltaY = touchStartY - e.touches[0].clientY;
+                targetTravelSpeed += deltaY * 0.001;
+                targetTravelSpeed = Math.max(-0.2, Math.min(targetTravelSpeed, 1.0));
+                touchStartY = e.touches[0].clientY; 
+            }
         }, { passive: true });
 
         // --- 5. RESPONSIVENESS & ANIMATION LOOP ---
         function updateLayoutForDevice() {
-            const newAspect = window.innerWidth / window.innerHeight;
-            camera.left = -viewSize * newAspect / 2;
-            camera.right = viewSize * newAspect / 2;
-            camera.top = viewSize / 2;
-            camera.bottom = -viewSize / 2;
+            camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-
-            // Reposition and scale shards on mobile so they don't hide behind UI
-            if (window.innerWidth < 768) {
-                shardsGroup.position.set(0, -8, 0); 
-                shardsGroup.scale.set(0.65, 0.65, 0.65);
-            } else {
-                shardsGroup.position.set(4, 0, 0);
-                shardsGroup.scale.set(1, 1, 1);
-            }
         }
 
         window.addEventListener('resize', updateLayoutForDevice);
-        updateLayoutForDevice(); // Run once on load
 
         function animate() {
             requestAnimationFrame(animate);
 
-            mouseLight.position.x += (targetLightPos.x - mouseLight.position.x) * 0.15;
-            mouseLight.position.y += (targetLightPos.y - mouseLight.position.y) * 0.15;
+            mouseLight.position.x += (targetLightPos.x - mouseLight.position.x) * 0.1;
+            mouseLight.position.y += (targetLightPos.y - mouseLight.position.y) * 0.1;
 
-            shardsGroup.rotation.x += (groupTargetRotX - shardsGroup.rotation.x) * 0.05;
-            shardsGroup.rotation.y += (groupTargetRotY - shardsGroup.rotation.y) * 0.05;
+            targetTravelSpeed *= 0.95; 
+            currentTravelSpeed += ((baseTravelSpeed + targetTravelSpeed) - currentTravelSpeed) * 0.1;
+            
+            cameraRig.position.z -= currentTravelSpeed;
 
-            raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(shardsArray);
-
-            shardsArray.forEach(shard => {
-                shard.userData.targetZ = shard.userData.baseZ;
-                shard.userData.targetRotX = 0;
-                shard.userData.targetRotY = 0;
-            });
-
-            if (intersects.length > 0) {
-                const hit = intersects[0];
-                const activeShard = hit.object;
+            shards.forEach(shard => {
+                shard.rotation.x += shard.userData.rotSpeedX;
+                shard.rotation.y += shard.userData.rotSpeedY;
+                shard.rotation.z += shard.userData.rotSpeedZ;
                 
-                activeShard.userData.targetZ = activeShard.userData.baseZ + 4.0; 
-                activeShard.userData.targetRotX = -mouse.y * 0.6; 
-                activeShard.userData.targetRotY = mouse.x * 0.6; 
-            }
+                shard.position.x += shard.userData.driftX;
+                shard.position.y += shard.userData.driftY;
 
-            const time = Date.now() * 0.001;
-            shardsArray.forEach((shard, index) => {
-                const floatZ = Math.sin(time * 1.5 + index * 1.5) * 0.8;
-                const floatRotX = Math.sin(time * 1.2 + index) * 0.06;
-                const floatRotY = Math.cos(time * 1.3 + index) * 0.06;
-
-                const finalZ = shard.userData.targetZ + floatZ;
-                const finalRotX = shard.userData.targetRotX + floatRotX;
-                const finalRotY = shard.userData.targetRotY + floatRotY;
-
-                shard.position.z += (finalZ - shard.position.z) * 0.15;
-                shard.rotation.x += (finalRotX - shard.rotation.x) * 0.15;
-                shard.rotation.y += (finalRotY - shard.rotation.y) * 0.15;
+                const distZ = shard.position.z - cameraRig.position.z;
+                if (distZ < 10 && distZ > -10) {
+                    const repelStrength = Math.max(0, 1 - Math.abs(distZ) / 10);
+                    shard.position.x += (shard.position.x > 0 ? 0.05 : -0.05) * repelStrength;
+                    shard.position.y += (shard.position.y > 0 ? 0.05 : -0.05) * repelStrength;
+                }
             });
+
+            manageInfiniteSpace();
 
             renderer.render(scene, camera);
         }
